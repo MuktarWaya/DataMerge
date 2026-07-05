@@ -1,0 +1,16 @@
+# Local/temp files
+~$*
+.DS_Store
+Thumbs.db
+.claude/
+Screenshot*.png
+
+# Google Apps Script local config / local notes
+.clasp.json
+env.txt
+*.gsheet
+
+# Sample exports and large media are not needed for static deployment
+*.xlsx
+*.xls
+*.mp4

@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataMerge — MW รวมข้อมูล HDC &amp; Mypcu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* ════════════════════════════════════════
+   MW CI — Neo-Brutalism Design Tokens
+   ════════════════════════════════════════ */
+:root {
+  /* CI Palette */
+  --ci-blue:    #4F6EF7;
+  --ci-teal:    #1F8A8A;
+  --ci-orange:  #F4A261;
+  --ci-mint:    #D9F3EE;
+  --ci-ink:     #263238;
+  --ci-white:   #FAFBFC;
+
+  /* Semantic */
+  --bg:          #EEF8F7;    /* mint-cream dot-grid background */
+  --surface:     #FFFFFF;    /* card fill */
+  --ink:         #263238;    /* charcoal — all borders, text, shadows */
+  --track:       #D9F3EE;    /* progress/bar track = soft mint */
+
+  --active:      #F4A261;    /* orange — active nav tab, highlight */
+  --active-soft: #FDE8CD;
+  --primary:     #1F8A8A;    /* teal — primary action */
+  --primary-soft:#E5F6F5;
+  --blue:        #4F6EF7;    /* blue — info, links */
+  --blue-soft:   #EEF1FF;
+  --danger:      #E05252;
+  --danger-soft: #FDEAEA;
+  --warn:        #F4A261;
+  --warn-soft:   #FDE8CD;
+
+  /* Neo-Brutalism Signature */
+  --border:      2px   solid var(--ink);
+  --border-thick:2.5px solid var(--ink);
+  --border-dash: 2px dashed  #8FBFBC;
+  --sh-sm:  3px 3px 0 var(--ink);
+  --sh-md:  4px 4px 0 var(--ink);
+  --sh-lg:  5px 5px 0 var(--ink);
+
+  /* Shape */
+  --r-card:  20px;
+  --r-input: 14px;
+  --r-pill:  999px;
+
+  --font: 'Noto Sans Thai', 'Segoe UI', sans-serif;
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Body — dot grid ── */
+body {
+  font-family: var(--font);
+  font-size: 15px;
+  color: var(--ink);
+  min-height: 100vh;
+  background-color: var(--bg);
+  background-image: radial-gradient(#A8D5CF 1.2px, transparent 1.2px);
+  background-size: 24px 24px;
+}
+
+/* ════════════════════════════════
+   HEADER
+   ════════════════════════════════ */
+header {
+  position: sticky; top: 0; z-index: 200;
+  background: var(--surface);
+  border-bottom: var(--border-thick);
+  box-shadow: 0 3px 0 var(--ink);
+}
+.hdr {
+  max-width: 1320px; margin: 0 auto;
+  padding: 0 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 62px;
+}
+
+/* Logo */
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.logo-tile {
+  width: 40px; height: 40px;
+  border: var(--border-thick);
+  border-radius: 10px;
+  box-shadow: var(--sh-sm);
+  background: var(--ink);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 900; letter-spacing: -1px;
+  transform: rotate(-3deg);
+}
+.logo-tile span:first-child { color: #7BA4FF; }
+.logo-tile span:last-child  { color: #4ECDC4; }
+.logo-text { line-height: 1.1; }
+.logo-title { font-size: 16px; font-weight: 800; color: var(--ink); }
+.logo-sub   { font-size: 11px; font-weight: 500; color: var(--primary); }
+
+/* Pill Nav */
+nav { display: flex; gap: 6px; }
+.nb {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px;
+  border: var(--border); border-radius: var(--r-pill);
+  box-shadow: var(--sh-sm);
+  background: var(--surface); color: var(--ink);
+  font-family: var(--font); font-size: 13px; font-weight: 700;
+  cursor: pointer; transition: transform .08s, box-shadow .08s;
+  white-space: nowrap;
+}
+.nb:hover  { background: var(--track); }
+.nb.act    { background: var(--active); box-shadow: var(--sh-sm); }
+.nb:active { transform: translate(3px,3px); box-shadow: none; }
+.nb:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
+
+/* ════════════════════════════════
+   MAIN
+   ════════════════════════════════ */
+main { max-width: 1320px; margin: 0 auto; padding: 28px 20px 64px; }
+.view { display: none; }
+.view.act { display: block; }
+
+/* ════════════════════════════════
+   CARDS (Neo-Brutalism base)
+   ════════════════════════════════ */
+.card {
+  background: var(--surface);
+  border: var(--border-thick);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-lg);
+  padding: 22px;
+}
+.card-sm {
+  background: var(--surface);
+  border: var(--border);
+  border-radius: 14px;
+  box-shadow: var(--sh-sm);
+  padding: 16px;
+}
+
+/* ════════════════════════════════
+   GUIDE SECTION
+   ════════════════════════════════ */
+.guide-toggle {
+  width: 100%; text-align: left;
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 20px;
+  background: var(--surface); color: var(--ink);
+  border: var(--border-thick); border-radius: var(--r-card);
+  box-shadow: var(--sh-md);
+  font-family: var(--font); font-size: 14px; font-weight: 800;
+  cursor: pointer; transition: transform .08s, box-shadow .08s;
+  margin-bottom: 14px;
+}
+.guide-toggle:hover { background: var(--blue-soft); }
+.guide-toggle:active { transform: translate(4px,4px); box-shadow: none; }
+.guide-toggle .arrow { margin-left: auto; transition: .2s; font-size: 12px; color: var(--primary); }
+.guide-toggle.open .arrow { transform: rotate(180deg); }
+
+.guide-body { display: none; margin-bottom: 20px; }
+.guide-body.open { display: block; }
+.guide-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+.guide-card {
+  border: var(--border-thick); border-radius: var(--r-card);
+  box-shadow: var(--sh-md); overflow: hidden; background: var(--surface);
+}
+.guide-head {
+  padding: 10px 18px; font-size: 13.5px; font-weight: 800;
+  display: flex; align-items: center; gap: 8px;
+  border-bottom: var(--border-thick);
+}
+.guide-head.teal { background: var(--primary); color: #fff; }
+.guide-head.orange { background: var(--active); color: var(--ink); }
+.guide-img-box {
+  padding: 14px; background: var(--bg); border-bottom: var(--border);
+}
+.guide-img {
+  width: 100%; display: block; border-radius: 10px;
+  border: var(--border); box-shadow: var(--sh-sm);
+  cursor: zoom-in;
+}
+.guide-content { padding: 16px 18px; }
+.guide-note { font-size: 13px; line-height: 1.65; color: var(--ink); }
+
+/* Steps */
+.step-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.step { display: flex; gap: 10px; align-items: flex-start; }
+.step-num {
+  min-width: 24px; height: 24px;
+  background: var(--active); border: var(--border);
+  border-radius: 50%; box-shadow: 2px 2px 0 var(--ink);
+  font-size: 12px; font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+.step-txt { font-size: 12.5px; color: var(--ink); line-height: 1.6; }
+.step-txt strong { font-weight: 800; }
+.auto-chip {
+  display: inline-block; padding: 1px 8px;
+  background: var(--primary); color: #fff;
+  border: 1.5px solid var(--ink); border-radius: var(--r-pill);
+  box-shadow: 1px 1px 0 var(--ink);
+  font-size: 10.5px; font-weight: 800; margin-left: 5px;
+}
+
+/* Req box */
+.req-box {
+  margin-top: 12px; padding: 10px 13px;
+  background: var(--blue-soft);
+  border: var(--border); border-radius: 12px;
+  font-size: 12.5px; color: var(--ink); line-height: 1.6;
+}
+
+/* ════════════════════════════════
+   UPLOAD CARDS
+   ════════════════════════════════ */
+.up-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 24px; }
+
+.up-card {
+  background: var(--surface);
+  border: var(--border-thick); border-radius: var(--r-card);
+  box-shadow: var(--sh-lg);
+  cursor: pointer; transition: transform .08s, box-shadow .08s;
+  overflow: hidden; user-select: none;
+}
+.up-card:hover { background: #F9FFFE; }
+.up-card:active { transform: translate(5px,5px); box-shadow: none; }
+.up-card.ok { border-color: var(--primary); background: var(--primary-soft); box-shadow: 5px 5px 0 var(--primary); }
+.up-card.drag { background: var(--blue-soft); border-color: var(--blue); }
+
+.up-head {
+  padding: 12px 18px; font-size: 12.5px; font-weight: 800;
+  border-bottom: var(--border-thick); display: flex; align-items: center; gap: 8px;
+}
+.up-head.hdc   { background: var(--primary); color: #fff; }
+.up-head.mypcu { background: var(--active); color: var(--ink); }
+.up-card.ok .up-head.hdc,
+.up-card.ok .up-head.mypcu { opacity: .85; }
+
+.up-body { padding: 22px 20px; text-align: center; }
+
+/* Icon tile — Neo-Brutalism signature */
+.icon-tile {
+  width: 58px; height: 58px; margin: 0 auto 14px;
+  display: grid; place-items: center;
+  border: var(--border-thick); border-radius: 14px;
+  box-shadow: var(--sh-sm);
+  font-size: 26px;
+  transform: rotate(-4deg);
+  transition: transform .15s;
+}
+.up-card:hover .icon-tile { transform: rotate(4deg); }
+.icon-tile.teal   { background: var(--track); }
+.icon-tile.orange { background: var(--active-soft); }
+.up-card.ok .icon-tile { transform: rotate(0deg); background: var(--primary); }
+
+.up-title { font-size: 15px; font-weight: 800; margin-bottom: 6px; }
+.up-sub   { font-size: 12.5px; color: #5a7070; line-height: 1.55; }
+
+.fi-box {
+  margin: 14px 0 0;
+  padding: 10px 13px;
+  background: var(--surface);
+  border: var(--border); border-radius: 12px;
+  text-align: left;
+}
+.fi-name { font-size: 12.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fi-meta { font-size: 11.5px; color: #5a7070; margin-top: 2px; }
+.fi-auto { font-size: 11px; color: var(--primary); font-weight: 700; margin-top: 3px; display: none; }
+
+/* ════════════════════════════════
+   BUTTONS
+   ════════════════════════════════ */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 22px;
+  border: var(--border); border-radius: var(--r-pill);
+  box-shadow: var(--sh-sm);
+  background: var(--surface); color: var(--ink);
+  font-family: var(--font); font-size: 14px; font-weight: 800;
+  cursor: pointer; transition: transform .08s, box-shadow .08s;
+  text-decoration: none;
+}
+.btn:hover  { filter: brightness(0.97); }
+.btn:active { transform: translate(3px,3px); box-shadow: none; }
+.btn:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; transform: none; }
+
+.btn-teal   { background: var(--primary); color: #fff; border-color: var(--ink); }
+.btn-orange { background: var(--active); color: var(--ink); }
+.btn-blue   { background: var(--blue); color: #fff; }
+.btn-red    { background: var(--danger); color: #fff; }
+.btn-ghost  { background: var(--surface); color: var(--ink); }
+.btn-lg     { padding: 14px 30px; font-size: 16px; box-shadow: var(--sh-md); }
+
+.act-bar { display: flex; justify-content: center; gap: 12px; margin-bottom: 24px; }
+
+/* ════════════════════════════════
+   ALERTS
+   ════════════════════════════════ */
+.alert {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 13px 16px; margin-bottom: 18px;
+  border: var(--border); border-radius: 14px;
+  font-size: 13.5px; line-height: 1.6;
+}
+.alert-info { background: var(--blue-soft); border-left: 4px solid var(--blue); }
+.alert-ok   { background: var(--primary-soft); border-left: 4px solid var(--primary); }
+.alert-warn { background: var(--warn-soft); border-left: 4px solid var(--warn); }
+
+/* ════════════════════════════════
+   STATS
+   ════════════════════════════════ */
+.stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 20px; }
+
+.stat-card {
+  background: var(--surface);
+  border: var(--border-thick); border-radius: var(--r-card);
+  box-shadow: var(--sh-md); padding: 18px;
+}
+.stat-lbl { font-size: 12px; font-weight: 700; color: #5a7070; margin-bottom: 6px; }
+.stat-val { font-size: 30px; font-weight: 900; line-height: 1; margin-bottom: 10px; }
+.stat-val.teal   { color: var(--primary); }
+.stat-val.orange { color: var(--active); }
+.stat-val.blue   { color: var(--blue); }
+
+/* Neo-Brutalism progress bar */
+.pbar {
+  height: 22px;
+  background: var(--track);
+  border: var(--border); border-radius: var(--r-pill);
+  overflow: hidden;
+}
+.pfill {
+  height: 100%;
+  border-right: var(--border);
+  border-radius: 0 var(--r-pill) var(--r-pill) 0;
+  transition: width .4s cubic-bezier(.25,.8,.25,1);
+}
+.pfill.teal   { background: var(--primary); }
+.pfill.orange { background: var(--active); }
+
+/* ════════════════════════════════
+   TABLE
+   ════════════════════════════════ */
+.tbl-card {
+  background: var(--surface);
+  border: var(--border-thick); border-radius: var(--r-card);
+  box-shadow: var(--sh-lg); overflow: hidden; margin-bottom: 22px;
+}
+.tbl-bar {
+  padding: 13px 18px;
+  border-bottom: var(--border-thick);
+  background: var(--track);
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
+.tbl-title { font-size: 14px; font-weight: 800; }
+.tbl-ctrl  { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Inputs */
+.srch, .fsel {
+  padding: 7px 12px;
+  border: var(--border); border-radius: var(--r-input);
+  background: var(--surface); color: var(--ink);
+  font-family: var(--font); font-size: 12.5px; font-weight: 600;
+  outline: none;
+}
+.srch { width: 200px; }
+.srch:focus, .fsel:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+
+.tbl-wrap { overflow-x: auto; max-height: 450px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+thead { position: sticky; top: 0; z-index: 10; }
+th {
+  background: var(--track);
+  border-bottom: var(--border-thick);
+  padding: 9px 12px;
+  text-align: left; font-weight: 800; color: var(--ink);
+  white-space: nowrap;
+}
+td {
+  padding: 8px 12px;
+  border-bottom: 2px dashed #D9F3EE;
+  white-space: nowrap; max-width: 200px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+tr:hover td { background: var(--bg); }
+tr.unmatched td { background: var(--warn-soft); }
+tr.unmatched:hover td { background: #FDDAB5; }
+
+.badge {
+  display: inline-block; padding: 2px 9px;
+  border: 1.5px solid var(--ink); border-radius: var(--r-pill);
+  font-size: 11px; font-weight: 800;
+  box-shadow: 1px 1px 0 var(--ink);
+}
+.b-ok   { background: var(--track); color: var(--primary); }
+.b-warn { background: var(--warn-soft); color: #7a4800; }
+.cell-new { color: var(--primary); font-weight: 800; }
+.pag { padding: 10px 18px; font-size: 12px; font-weight: 600; color: #5a7070; border-top: var(--border); background: var(--bg); }
+
+/* ════════════════════════════════
+   LOG
+   ════════════════════════════════ */
+.log-card {
+  background: var(--surface);
+  border: var(--border-thick); border-radius: var(--r-card);
+  box-shadow: var(--sh-lg); overflow: hidden;
+}
+.empty { padding: 52px 24px; text-align: center; color: #8FBFBC; }
+.empty-ico { font-size: 44px; margin-bottom: 10px; }
+
+/* ════════════════════════════════
+   IMAGE MODAL
+   ════════════════════════════════ */
+.modal {
+  display: none; position: fixed; inset: 0;
+  background: rgba(38,50,56,.85); z-index: 9999;
+  align-items: center; justify-content: center; cursor: zoom-out;
+}
+.modal.open { display: flex; }
+.modal img  { max-width: 92vw; max-height: 88vh; border-radius: 16px; border: var(--border-thick); box-shadow: 8px 8px 0 var(--ink); }
+
+/* ════════════════════════════════
+   FOOTER
+   ════════════════════════════════ */
+footer {
+  background: var(--ink); color: #B0BEC5;
+  text-align: center; padding: 20px 24px;
+  font-size: 12.5px; font-weight: 600;
+  margin-top: 40px;
+}
+footer strong { color: var(--active); }
+footer a { color: #7BA4FF; text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+/* ════════════════════════════════
+   SPIN
+   ════════════════════════════════ */
+.spin {
+  display: inline-block; width: 15px; height: 15px;
+  border: 2.5px solid rgba(255,255,255,.35);
+  border-top-color: #fff; border-radius: 50%;
+  animation: rot .6s linear infinite;
+}
+@keyframes rot { to { transform: rotate(360deg); } }
+
+/* ════════════════════════════════
+   RESPONSIVE
+   ════════════════════════════════ */
+@media (max-width: 720px) {
+  .up-grid, .guide-grid, .stat-grid { grid-template-columns: 1fr; }
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+  .hdr { flex-wrap: wrap; height: auto; padding: 10px; gap: 8px; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Image zoom modal ── -->
+<div class="modal" id="img-modal" onclick="this.classList.remove('open')">
+  <img id="modal-img" src="" alt="">
+</div>
+
+<!-- ════════════ HEADER ════════════ -->
+<header>
+  <div class="hdr">
+    <a class="logo" href="#">
+      <div class="logo-tile">
+        <span>M</span><span>W</span>
+      </div>
+      <div class="logo-text">
+        <div class="logo-title">DataMerge</div>
+        <div class="logo-sub">HDC + Mypcu · Muktar Waya</div>
+      </div>
+    </a>
+    <nav>
+      <button class="nb act" onclick="showView('upload')">📁 อัปโหลด</button>
+      <button class="nb" id="nav-preview" disabled onclick="showView('preview')">📊 ตรวจสอบผล</button>
+      <button class="nb" onclick="showView('log')">📋 ประวัติ</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<!-- ════════════════════════════════
+     UPLOAD VIEW
+     ════════════════════════════════ -->
+<div class="view act" id="view-upload">
+
+  <!-- Guide toggle -->
+  <button class="guide-toggle open" id="guide-btn" onclick="toggleGuide()">
+    📖&nbsp; คู่มือการเตรียมไฟล์ก่อนอัปโหลด
+    <span class="arrow">▼</span>
+  </button>
+
+  <!-- Guide body -->
+  <div class="guide-body open" id="guide-body">
+    <div class="guide-grid">
+
+      <!-- HDC -->
+      <div class="guide-card">
+        <div class="guide-head teal">✅&nbsp; ไฟล์ที่ 1 — exchange_file (HDC)</div>
+        <div class="guide-img-box">
+          <img class="guide-img"
+            src="หัวตาราง ไฟล์ dataexchage จาก HDC.png"
+            alt="ตัวอย่างไฟล์ HDC"
+            onclick="zoomImg(this.src)" title="คลิกขยายรูป">
+        </div>
+        <div class="guide-content">
+          <div class="guide-note">
+            <strong>ใช้ได้เลย ไม่ต้องแก้ไขอะไร</strong><br><br>
+            • แถวที่ 1 = หัวตาราง: <strong>hoscode, hosname, cid, pid, name, lname</strong> …<br>
+            • แถวที่ 2 เป็นต้นไป = ข้อมูลผู้ป่วย<br>
+            • คอลัมน์ <strong>cid / name / lname</strong> ถูกปิดด้วย * ← ระบบจะเติมให้
+          </div>
+        </div>
+      </div>
+
+      <!-- Mypcu -->
+      <div class="guide-card">
+        <div class="guide-head orange">⚠️&nbsp; ไฟล์ที่ 2 — rptPersonTypeName (Mypcu)</div>
+        <div class="guide-img-box">
+          <img class="guide-img"
+            src="หัวตาราง ไฟล์ rptPersonType จาก Mypcu.png"
+            alt="ตัวอย่างไฟล์ Mypcu"
+            onclick="zoomImg(this.src)" title="คลิกขยายรูป">
+        </div>
+        <div class="guide-content">
+          <div class="guide-note">
+            ไฟล์ดิบจาก Mypcu อาจมีปัญหาต่อไปนี้
+            <span class="auto-chip" style="display:inline-block">⚙️ Auto-detect</span>
+          </div>
+          <div class="step-list">
+            <div class="step">
+              <span class="step-num">1</span>
+              <div class="step-txt"><strong>มีชื่อรายงานด้านบน</strong> — ระบบสแกนหาแถว PID อัตโนมัติ</div>
+            </div>
+            <div class="step">
+              <span class="step-num">2</span>
+              <div class="step-txt"><strong>คอลัมน์ PID ไม่ใช่คอลัมน์ A</strong> — ระบบค้นหาตำแหน่งให้เอง</div>
+            </div>
+            <div class="step">
+              <span class="step-num">3</span>
+              <div class="step-txt"><strong>มีคอลัมน์ซ้อน (2 แถวหัว)</strong> — ระบบข้ามแถวหัวซ้อนให้อัตโนมัติ</div>
+            </div>
+          </div>
+          <div class="req-box">ต้องมีคอลัมน์: <strong>PID · CID · ชื่อ-นามสกุล</strong></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <!-- /Guide -->
+
+  <!-- Upload cards -->
+  <div class="up-grid">
+
+    <!-- HDC -->
+    <div class="up-card" id="card-hdc"
+      onclick="document.getElementById('inp-hdc').click()"
+      ondragover="drgOv(event,'hdc')" ondragleave="drgLv(event,'hdc')" ondrop="drgDrop(event,'hdc')">
+      <input type="file" id="inp-hdc" accept=".xlsx,.xls" style="display:none" onchange="onFile(event,'hdc')">
+      <div class="up-head hdc">📂&nbsp; ไฟล์ที่ 1 — HDC</div>
+      <div class="up-body">
+        <div class="icon-tile teal" id="ico-hdc">📋</div>
+        <div class="up-title">อัปโหลด exchange_file (HDC)</div>
+        <div class="up-sub">ลากวางหรือคลิกเลือกไฟล์<br>.xlsx / .xls</div>
+        <div class="fi-box" id="fi-hdc" style="display:none">
+          <div class="fi-name" id="fn-hdc"></div>
+          <div class="fi-meta" id="fm-hdc"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mypcu -->
+    <div class="up-card" id="card-mypcu"
+      onclick="document.getElementById('inp-mypcu').click()"
+      ondragover="drgOv(event,'mypcu')" ondragleave="drgLv(event,'mypcu')" ondrop="drgDrop(event,'mypcu')">
+      <input type="file" id="inp-mypcu" accept=".xlsx,.xls" style="display:none" onchange="onFile(event,'mypcu')">
+      <div class="up-head mypcu">📂&nbsp; ไฟล์ที่ 2 — Mypcu</div>
+      <div class="up-body">
+        <div class="icon-tile orange" id="ico-mypcu">📋</div>
+        <div class="up-title">อัปโหลด rptPersonTypeName (Mypcu)</div>
+        <div class="up-sub">ลากวางหรือคลิกเลือกไฟล์<br>ระบบจัดการรูปแบบพิเศษอัตโนมัติ</div>
+        <div class="fi-box" id="fi-mypcu" style="display:none">
+          <div class="fi-name" id="fn-mypcu"></div>
+          <div class="fi-meta" id="fm-mypcu"></div>
+          <div class="fi-auto" id="fa-mypcu"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Merge button -->
+  <div class="act-bar">
+    <button class="btn btn-teal btn-lg" id="btn-merge" onclick="doMerge()" disabled>
+      ⟳&nbsp; รวมข้อมูล
+    </button>
+  </div>
+
+  <!-- Info -->
+  <div class="alert alert-info">
+    <span style="flex-shrink:0;font-size:18px">🔒</span>
+    <div>ไฟล์ประมวลผลในเบราว์เซอร์ของคุณ <strong>ไม่มีข้อมูลถูกส่งออกไปเซิร์ฟเวอร์ใดๆ</strong>
+    — ระบบบันทึกเฉพาะ LOG (ชื่อไฟล์ · จำนวนแถว) ไว้ในเครื่องของคุณ</div>
+  </div>
+
+</div>
+<!-- /Upload view -->
+
+<!-- ════════════════════════════════
+     PREVIEW VIEW
+     ════════════════════════════════ -->
+<div class="view" id="view-preview">
+
+  <!-- Stats -->
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-lbl">แถว HDC ทั้งหมด</div>
+      <div class="stat-val blue" id="s-total">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-lbl">จับคู่ได้ / เติมข้อมูลแล้ว</div>
+      <div class="stat-val teal" id="s-matched">—</div>
+      <div class="pbar"><div class="pfill teal" id="p-matched" style="width:0%"></div></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-lbl">จับคู่ไม่ได้ (ข้อมูลยังว่าง)</div>
+      <div class="stat-val orange" id="s-unmatched">—</div>
+      <div class="pbar"><div class="pfill orange" id="p-unmatched" style="width:0%"></div></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-lbl">แถว Mypcu (อ่านได้)</div>
+      <div class="stat-val" id="s-mypcu">—</div>
+    </div>
+  </div>
+
+  <div id="alert-res" style="display:none"></div>
+  <div id="parse-info" style="display:none"></div>
+
+  <!-- Table -->
+  <div class="tbl-card">
+    <div class="tbl-bar">
+      <span class="tbl-title">📊 ผลการรวมข้อมูล</span>
+      <div class="tbl-ctrl">
+        <input class="srch" type="text" placeholder="ค้นหา PID, CID, ชื่อ…" oninput="doSearch(this.value)">
+        <select class="fsel" onchange="doFilter(this.value)">
+          <option value="all">แสดงทั้งหมด</option>
+          <option value="matched">จับคู่ได้</option>
+          <option value="unmatched">จับคู่ไม่ได้</option>
+        </select>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table><thead id="t-head"></thead><tbody id="t-body"></tbody></table>
+    </div>
+    <div class="pag" id="t-pag"></div>
+  </div>
+
+  <div style="display:flex;justify-content:center;gap:12px">
+    <button class="btn btn-ghost" onclick="showView('upload')">← กลับ</button>
+    <button class="btn btn-teal btn-lg" onclick="doExport()">⬇&nbsp; ดาวน์โหลด Excel</button>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════
+     LOG VIEW
+     ════════════════════════════════ -->
+<div class="view" id="view-log">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+    <div>
+      <h2 style="font-size:18px;font-weight:900">📋 ประวัติการใช้งาน</h2>
+      <p style="font-size:12.5px;color:#5a7070;margin-top:3px">บันทึกการใช้งาน LOG ทั้งหมด (เก็บในเครื่อง)</p>
+    </div>
+    <button class="btn btn-red" onclick="clearLog()">🗑&nbsp; ล้างประวัติ</button>
+  </div>
+  <div class="log-card" id="log-body"></div>
+</div>
+
+</main>
+
+<!-- ════════════ FOOTER ════════════ -->
+<footer>
+  พัฒนาโดย&nbsp;<strong>นายมุคตาร วายา</strong>
+  &nbsp;พยาบาลวิชาชีพชำนาญการ&nbsp; รพ.สต.ตรัง
+  &nbsp;·&nbsp;
+  <a href="mailto:Muktar32@gmail.com">Muktar32@gmail.com</a>
+  &nbsp;·&nbsp; DataMerge v2.0
+</footer>
+
+<script>
+/* ════════════════════════════════════════
+   DataMerge — Core Logic
+   ════════════════════════════════════════ */
+let hdcData=null,mypcuData=null,hdcFile=null,mypcuFile=null;
+let merged=null,allRows=[],filtRows=[];
+let parseDetails={};
+const DISP=600;
+
+const PREFIXES=[
+  'ว่าที่ ร.ต.ต.','ว่าที่ ร.ต.ท.','ว่าที่ ร.ต.อ.',
+  'ว่าที่ พ.ต.ต.','ว่าที่ พ.ต.ท.','ว่าที่ พ.ต.อ.',
+  'ว่าที่ ร.ต.','ว่าที่ พ.ต.',
+  'นางสาว','น.ส.','เด็กหญิง','เด็กชาย','นาง','นาย',
+  'ด.ช.','ด.ญ.',
+  'พล.ต.อ.','พล.ต.ท.','พล.ต.ต.',
+  'พ.ต.อ.','พ.ต.ท.','พ.ต.ต.',
+  'ร.ต.อ.','ร.ต.ท.','ร.ต.ต.',
+  'ส.ต.อ.','ส.ต.ท.','ส.ต.ต.',
+  'ดร.','นพ.','พญ.','ทพ.','ทพญ.','ภญ.','ภก.',
+];
+
+/* ── View nav ── */
+function showView(v){
+  document.querySelectorAll('.view').forEach(el=>el.classList.remove('act'));
+  document.querySelectorAll('.nb').forEach(el=>el.classList.remove('act'));
+  document.getElementById('view-'+v).classList.add('act');
+  const idx={upload:0,preview:1,log:2}[v];
+  if(idx!==undefined) document.querySelectorAll('.nb')[idx].classList.add('act');
+  if(v==='log') renderLog();
+}
+
+/* ── Guide toggle ── */
+function toggleGuide(){
+  const b=document.getElementById('guide-body');
+  const btn=document.getElementById('guide-btn');
+  const open=b.classList.toggle('open');
+  btn.classList.toggle('open',open);
+}
+
+/* ── Image zoom ── */
+function zoomImg(src){
+  document.getElementById('modal-img').src=src;
+  document.getElementById('img-modal').classList.add('open');
+}
+
+/* ── Drag & Drop ── */
+function drgOv(e,t){e.preventDefault();document.getElementById('card-'+t).classList.add('drag');}
+function drgLv(e,t){document.getElementById('card-'+t).classList.remove('drag');}
+function drgDrop(e,t){e.preventDefault();drgLv(e,t);const f=e.dataTransfer.files[0];if(f)procFile(f,t);}
+function onFile(e,t){const f=e.target.files[0];if(f)procFile(f,t);}
+
+/* ── File read ── */
+function procFile(file,type){
+  if(!file.name.match(/\.(xlsx|xls)$/i)){alert('กรุณาเลือกไฟล์ Excel (.xlsx / .xls)');return;}
+  const btn=document.getElementById('btn-merge');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span>&nbsp;กำลังอ่านไฟล์…';
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:false,raw:false});
+      if(type==='hdc'){
+        hdcData=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:'',raw:false});
+        hdcFile=file; setUI('hdc',file,hdcData.length,'');
+      }else{
+        const res=parseMypcuSmart(wb);
+        mypcuData=res.data; mypcuFile=file; parseDetails=res.info;
+        setUI('mypcu',file,mypcuData.length,res.info.adjusted?'⚙️ '+res.info.note:'');
+      }
+      checkReady();
+    }catch(err){alert('อ่านไฟล์ไม่ได้: '+err.message); checkReady();}
+  };
+  r.readAsArrayBuffer(file);
+}
+
+/* ── Smart Mypcu parser ── */
+function parseMypcuSmart(wb){
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+  if(!raw.length) return{data:[],info:{adjusted:false,note:''}};
+  let hIdx=0,cIdx=0,adjusted=false; const notes=[];
+  for(let i=0;i<Math.min(20,raw.length);i++){
+    const ci=raw[i].findIndex(v=>String(v).trim().toUpperCase()==='PID');
+    if(ci>=0){hIdx=i;cIdx=ci;break;}
+  }
+  if(hIdx>0){adjusted=true;notes.push(`ข้ามแถวชื่อรายงาน ${hIdx} แถว`);}
+  if(cIdx>0){adjusted=true;notes.push(`PID เริ่มที่คอลัมน์ ${cIdx+1}`);}
+  const headers=raw[hIdx].slice(cIdx).map(h=>String(h).replace(/\n/g,' ').trim());
+  let dIdx=hIdx+1;
+  if(dIdx<raw.length){
+    const nxt=raw[dIdx].slice(cIdx);
+    const pv=String(nxt[0]||'').trim();
+    if(!pv||/^\(/.test(pv)||(isNaN(Number(pv))&&!/^\d/.test(pv))){dIdx++;adjusted=true;notes.push('ข้ามแถวหัวซ้อน');}
+  }
+  const data=[];
+  for(let i=dIdx;i<raw.length;i++){
+    const row=raw[i].slice(cIdx);
+    if(row.every(v=>String(v).trim()==='')) continue;
+    const obj={};
+    headers.forEach((h,j)=>{obj[h]=row[j]??'';});
+    if(!String(obj['PID']||'').trim()) continue;
+    data.push(obj);
+  }
+  return{data,info:{adjusted,note:notes.join(' | '),hIdx,cIdx,dIdx}};
+}
+
+function setUI(type,file,rows,autoMsg){
+  document.getElementById('card-'+type).classList.add('ok');
+  document.getElementById('ico-'+type).textContent='✅';
+  document.getElementById('fi-'+type).style.display='block';
+  document.getElementById('fn-'+type).textContent=file.name;
+  document.getElementById('fm-'+type).textContent=rows.toLocaleString()+' แถว · '+(file.size/1024).toFixed(1)+' KB';
+  if(type==='mypcu'){
+    const fa=document.getElementById('fa-mypcu');
+    if(autoMsg){fa.style.display='block'; fa.textContent=autoMsg;}
+    else fa.style.display='none';
+  }
+}
+function checkReady(){
+  const ok=hdcData&&mypcuData;
+  const b=document.getElementById('btn-merge');
+  b.disabled=!ok; b.innerHTML='⟳&nbsp; รวมข้อมูล';
+}
+
+/* ── Name split ── */
+function splitName(full){
+  if(!full) return{fname:'',lname:''};
+  let s=String(full).trim();
+  for(const p of PREFIXES){if(s.startsWith(p)){s=s.slice(p.length).trim();break;}}
+  const pt=s.split(/\s+/).filter(Boolean);
+  if(!pt.length) return{fname:'',lname:''};
+  return{fname:pt[0],lname:pt.slice(1).join(' ')};
+}
+function normPID(v){return String(v).trim().replace(/^0+/,'')||'0';}
+function findCol(cols,...t){
+  for(const k of t){const h=cols.find(c=>c.trim().toLowerCase()===k.toLowerCase());if(h)return h;}
+  for(const k of t){const h=cols.find(c=>c.trim().toLowerCase().includes(k.toLowerCase()));if(h)return h;}
+  return null;
+}
+
+/* ── MERGE ── */
+function doMerge(){
+  if(!hdcData||!mypcuData) return;
+  const hc=Object.keys(hdcData[0]||{}), mc=Object.keys(mypcuData[0]||{});
+  const hPid=findCol(hc,'pid'), hCid=findCol(hc,'cid');
+  const hName=findCol(hc,'name'), hLname=findCol(hc,'lname');
+  const mPid=findCol(mc,'pid','PID'), mCid=findCol(mc,'cid','CID');
+  const mName=findCol(mc,'ชื่อ-นามสกุล','ชื่อนามสกุล','ชื่อ')||mc.find(c=>c.includes('ชื่อ'));
+
+  if(!hPid||!mPid){alert('ไม่พบคอลัมน์ PID กรุณาตรวจสอบไฟล์');return;}
+
+  const mpMap=new Map();
+  for(const row of mypcuData){
+    const key=normPID(row[mPid]);
+    if(key&&key!=='0') mpMap.set(key,{
+      cid:mCid?String(row[mCid]).trim():'',
+      full:mName?String(row[mName]).trim():'',
+    });
+  }
+
+  let matched=0;
+  const results=[];
+  for(const row of hdcData){
+    const key=normPID(row[hPid]);
+    const mp=mpMap.get(key);
+    const nr={...row,_matched:!!mp,_key:key};
+    if(mp){
+      matched++;
+      if(hCid)   nr[hCid]=mp.cid;
+      const{fname,lname}=splitName(mp.full);
+      if(hName)  nr[hName]=fname;
+      if(hLname) nr[hLname]=lname;
+    }
+    results.push(nr);
+  }
+  merged=results;
+
+  const total=hdcData.length, unmatched=total-matched;
+  document.getElementById('s-total').textContent=total.toLocaleString();
+  document.getElementById('s-matched').textContent=matched.toLocaleString();
+  document.getElementById('s-unmatched').textContent=unmatched.toLocaleString();
+  document.getElementById('s-mypcu').textContent=mypcuData.length.toLocaleString();
+  const pct=total>0?matched/total*100:0;
+  document.getElementById('p-matched').style.width=pct+'%';
+  document.getElementById('p-unmatched').style.width=(100-pct)+'%';
+
+  const ar=document.getElementById('alert-res');
+  ar.style.display='block';
+  ar.className=unmatched===0?'alert alert-ok':'alert alert-warn';
+  ar.innerHTML=unmatched===0
+    ?`✅ จับคู่ครบทุกแถว — <strong>${matched.toLocaleString()}</strong> แถว เติมข้อมูลสำเร็จ`
+    :`⚠️ จับคู่ได้ <strong>${matched.toLocaleString()}</strong> แถว · ไม่พบข้อมูลใน Mypcu <strong>${unmatched.toLocaleString()}</strong> แถว (แถวสีส้ม)`;
+
+  if(parseDetails.adjusted){
+    const pi=document.getElementById('parse-info');
+    pi.style.display='block';
+    pi.innerHTML=`<div class="alert alert-info" style="font-size:12.5px">
+      ⚙️ <strong>Auto-detect Mypcu:</strong> ${esc(parseDetails.note)}
+    </div>`;
+  }
+
+  logAdd({ts:new Date().toISOString(),hdcFile:hdcFile.name,hdcRows:total,
+    mpFile:mypcuFile.name,mpRows:mypcuData.length,matched,unmatched,
+    autoAdjust:parseDetails.note||'-'});
+
+  allRows=results; filtRows=results;
+  renderTable(filtRows,hc,hCid,hName,hLname);
+  document.getElementById('nav-preview').disabled=false;
+  showView('preview');
+}
+
+/* ── Table ── */
+function renderTable(rows,cols,cid,nm,lnm){
+  if(!cols) cols=Object.keys((rows[0]||{})).filter(k=>!k.startsWith('_'));
+  if(!cid)  cid=cols.find(c=>c.toLowerCase()==='cid');
+  if(!nm)   nm=cols.find(c=>c.toLowerCase()==='name');
+  if(!lnm)  lnm=cols.find(c=>c.toLowerCase()==='lname');
+  const hs=cols.filter(k=>!k.startsWith('_'));
+
+  document.getElementById('t-head').innerHTML=
+    `<tr><th>#</th><th>สถานะ</th>${hs.map(h=>`<th>${esc(h)}</th>`).join('')}</tr>`;
+
+  const disp=rows.slice(0,DISP);
+  document.getElementById('t-body').innerHTML=disp.map((row,i)=>{
+    const ok=row._matched;
+    const cells=hs.map(h=>{
+      const isKey=ok&&(h===cid||h===nm||h===lnm);
+      return`<td${isKey?' class="cell-new"':''}>${esc(String(row[h]??''))}</td>`;
+    }).join('');
+    const bdg=ok
+      ?'<span class="badge b-ok">✓ จับคู่ได้</span>'
+      :'<span class="badge b-warn">— ไม่พบ</span>';
+    return`<tr class="${ok?'':'unmatched'}"><td>${i+1}</td><td>${bdg}</td>${cells}</tr>`;
+  }).join('');
+
+  document.getElementById('t-pag').textContent=rows.length>DISP
+    ?`แสดง ${DISP.toLocaleString()} จาก ${rows.length.toLocaleString()} แถว`
+    :`แสดงทั้งหมด ${rows.length.toLocaleString()} แถว`;
+}
+
+function doSearch(q){
+  q=q.trim().toLowerCase();
+  filtRows=q?allRows.filter(r=>Object.entries(r).some(([k,v])=>!k.startsWith('_')&&String(v).toLowerCase().includes(q))):allRows;
+  renderTable(filtRows);
+}
+function doFilter(v){
+  if(v==='matched') filtRows=allRows.filter(r=>r._matched);
+  else if(v==='unmatched') filtRows=allRows.filter(r=>!r._matched);
+  else filtRows=allRows;
+  renderTable(filtRows);
+}
+
+/* ── Export ── */
+function doExport(){
+  if(!merged) return;
+  const clean=merged.map(row=>{const o={};for(const[k,v] of Object.entries(row))if(!k.startsWith('_'))o[k]=v;return o;});
+  const ws=XLSX.utils.json_to_sheet(clean);
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'merged');
+  const d=new Date(), ds=`${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}`;
+  const fname=`merged_HDC_Mypcu_${ds}.xlsx`;
+  XLSX.writeFile(wb,fname);
+  logAdd({ts:new Date().toISOString(),action:'EXPORT',exportFile:fname,rows:clean.length});
+}
+
+/* ── LOG ── */
+const LS='datamerge_mw_v2';
+function logAdd(e){
+  const logs=JSON.parse(localStorage.getItem(LS)||'[]');
+  logs.unshift(e); if(logs.length>200) logs.length=200;
+  localStorage.setItem(LS,JSON.stringify(logs));
+}
+function renderLog(){
+  const logs=JSON.parse(localStorage.getItem(LS)||'[]');
+  const el=document.getElementById('log-body');
+  if(!logs.length){
+    el.innerHTML=`<div class="empty"><div class="empty-ico">📋</div><div style="font-weight:700;font-size:14px">ยังไม่มีประวัติการใช้งาน</div></div>`;
+    return;
+  }
+  const rows=logs.map((log,i)=>{
+    const dt=new Date(log.ts).toLocaleString('th-TH',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    if(log.action==='EXPORT') return`<tr>
+      <td style="padding:9px 13px;border-bottom:2px dashed var(--track);font-size:12.5px;white-space:nowrap">${dt}</td>
+      <td style="padding:9px 13px;border-bottom:2px dashed var(--track)"><span class="badge b-ok">⬇ ส่งออก</span></td>
+      <td style="padding:9px 13px;border-bottom:2px dashed var(--track);font-size:12.5px">${esc(log.exportFile||'')} <span style="color:#5a7070">(${(log.rows||0).toLocaleString()} แถว)</span></td>
+    </tr>`;
+    return`<tr>
+      <td style="padding:9px 13px;border-bottom:2px dashed var(--track);font-size:12.5px;white-space:nowrap">${dt}</td>
+      <td style="padding:9px 13px;border-bottom:2px dashed var(--track)"><span class="badge" style="background:var(--blue-soft);color:var(--blue)">⟳ รวมข้อมูล</span></td>
+      <td style="padding:9px 13px;border-bottom:2px dashed var(--track);font-size:12.5px">
+        HDC: <em>${esc(log.hdcFile||'')}</em> (${(log.hdcRows||0).toLocaleString()}) +
+        Mypcu: <em>${esc(log.mpFile||'')}</em> (${(log.mpRows||0).toLocaleString()}) →
+        <span class="cell-new" style="font-weight:800">${(log.matched||0).toLocaleString()}</span>
+        <span style="color:#5a7070">/ ไม่พบ <span style="color:var(--active);font-weight:800">${(log.unmatched||0).toLocaleString()}</span></span>
+        ${log.autoAdjust&&log.autoAdjust!=='-'?`<span class="auto-chip" style="display:inline-block">⚙️ ${esc(log.autoAdjust)}</span>`:''}
+      </td>
+    </tr>`;
+  }).join('');
+  el.innerHTML=`<table style="width:100%;border-collapse:collapse">
+    <thead><tr>
+      <th style="padding:10px 13px;text-align:left;font-weight:800;font-size:12.5px;background:var(--track);border-bottom:var(--border-thick)">เวลา</th>
+      <th style="padding:10px 13px;text-align:left;font-weight:800;font-size:12.5px;background:var(--track);border-bottom:var(--border-thick)">ประเภท</th>
+      <th style="padding:10px 13px;text-align:left;font-weight:800;font-size:12.5px;background:var(--track);border-bottom:var(--border-thick)">รายละเอียด</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+function clearLog(){
+  if(confirm('ต้องการล้างประวัติการใช้งานทั้งหมดหรือไม่?')){
+    localStorage.removeItem(LS); renderLog();
+  }
+}
+
+/* ── Util ── */
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function p2(n){return String(n).padStart(2,'0');}
+</script>
+</body>
+</html>
