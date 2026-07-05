@@ -11,12 +11,37 @@ const SHEET_ID      = '1SDjT38DZTC5_fl9b_Zpn9P5EoKR6wnp09gN9LlcuN_o';
 const LOG_SHEET     = 'LOG';
 const LOG_HEADERS   = ['เวลา','ประเภท','ไฟล์ HDC','แถว HDC','ไฟล์ Mypcu','แถว Mypcu','จับคู่ได้','ไม่พบ','ไฟล์ Export','Auto-Adjust'];
 
-// ── Serve web app ──────────────────────────────────────────
-function doGet() {
+// ── Serve web app / API ───────────────────────────────────
+function doGet(e) {
+  if (e && e.parameter && e.parameter.action === 'logs') {
+    return jsonOutput({ ok: true, rows: getLogs() }, e.parameter.callback);
+  }
+
   return HtmlService.createHtmlOutputFromFile('index')
     .setTitle('DataMerge — รวมข้อมูล HDC & Mypcu')
     .setSandboxMode(HtmlService.SandboxMode.IFRAME)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// ── API endpoint for Cloudflare Pages logging ─────────────
+function doPost(e) {
+  try {
+    const data = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    return jsonOutput(logUsage(data));
+  } catch (err) {
+    console.error('doPost error:', err);
+    return jsonOutput({ ok: false, error: err.toString() });
+  }
+}
+
+function jsonOutput(payload, callback) {
+  const json = JSON.stringify(payload || {});
+  const body = callback ? `${callback}(${json});` : json;
+  const mime = callback
+    ? ContentService.MimeType.JAVASCRIPT
+    : ContentService.MimeType.JSON;
+
+  return ContentService.createTextOutput(body).setMimeType(mime);
 }
 
 // ── Write log row to Google Sheet ─────────────────────────
